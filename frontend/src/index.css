@@ -1,0 +1,194 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Bondify Design System - Technical Brutalist Dark Theme */
+
+@layer base {
+  :root {
+    --background: 0 0% 5%;
+    --foreground: 0 0% 98%;
+
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 142 71% 45%;
+    --primary-foreground: 0 0% 5%;
+
+    --secondary: 142 50% 35%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
+
+    --accent: 270 60% 50%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 142 71% 45%;
+
+    --radius: 0.5rem;
+
+    /* Custom Bondify tokens */
+    --neon-green: 142 71% 45%;
+    --neon-green-muted: 142 50% 35%;
+    --neon-purple: 270 60% 50%;
+    --deep-black: 0 0% 5%;
+    --charcoal: 0 0% 8%;
+    --grid-line: 0 0% 100% / 0.1;
+
+    --sidebar-background: 0 0% 5%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 142 71% 45%;
+    --sidebar-primary-foreground: 0 0% 5%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 142 71% 45%;
+  }
+
+  .dark {
+    --background: 0 0% 5%;
+    --foreground: 0 0% 98%;
+
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 142 71% 45%;
+    --primary-foreground: 0 0% 5%;
+
+    --secondary: 142 50% 35%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
+
+    --accent: 270 60% 50%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 142 71% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    cursor: none;
+  }
+
+  /* Hide default cursor on interactive elements */
+  a, button, input, select, textarea, [role="button"] {
+    cursor: none;
+  }
+}
+
+@layer components {
+  /* Grid background pattern */
+  .grid-pattern {
+    background-image: 
+      linear-gradient(to right, hsl(var(--grid-line)) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--grid-line)) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+
+  /* Neon glow effects */
+  .glow-green {
+    box-shadow: 0 0 20px hsl(var(--neon-green) / 0.3),
+                0 0 40px hsl(var(--neon-green) / 0.1);
+  }
+
+  .glow-green-intense {
+    box-shadow: 0 0 30px hsl(var(--neon-green) / 0.5),
+                0 0 60px hsl(var(--neon-green) / 0.2);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 20px hsl(var(--neon-purple) / 0.3),
+                0 0 40px hsl(var(--neon-purple) / 0.1);
+  }
+
+  /* Text glow */
+  .text-glow-green {
+    text-shadow: 0 0 10px hsl(var(--neon-green) / 0.5),
+                 0 0 20px hsl(var(--neon-green) / 0.3);
+  }
+
+  /* Border glow on hover */
+  .border-glow {
+    @apply border border-border transition-all duration-300;
+  }
+
+  .border-glow:hover {
+    border-color: hsl(var(--neon-green) / 0.5);
+    box-shadow: 0 0 20px hsl(var(--neon-green) / 0.2),
+                inset 0 0 20px hsl(var(--neon-green) / 0.05);
+  }
+
+  /* Brutalist typography */
+  .heading-brutal {
+    @apply font-bold uppercase tracking-tight leading-none;
+  }
+
+  /* Terminal zone styling */
+  .terminal-zone {
+    @apply font-mono text-sm;
+  }
+}
+
+@layer utilities {
+  /* Animation utilities */
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { 
+      box-shadow: 0 0 20px hsl(var(--neon-green) / 0.3);
+    }
+    50% { 
+      box-shadow: 0 0 40px hsl(var(--neon-green) / 0.5);
+    }
+  }
+
+  /* Scroll indicator bounce */
+  .animate-scroll-bounce {
+    animation: scroll-bounce 2s ease-in-out infinite;
+  }
+
+  @keyframes scroll-bounce {
+    0%, 100% { transform: translateY(0); opacity: 1; }
+    50% { transform: translateY(8px); opacity: 0.5; }
+  }
+}
