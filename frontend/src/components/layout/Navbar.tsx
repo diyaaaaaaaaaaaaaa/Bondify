@@ -1,10 +1,22 @@
 import { motion } from 'framer-motion';
-import { Wallet, LogOut } from 'lucide-react';
+import { Wallet, LogOut, ShieldAlert } from 'lucide-react'; // Added ShieldAlert for verification warning
 import { Button } from '@/components/ui/button';
-import { useBondContext } from '@/context/BondContext';
+import { useWeb3 } from '@/contexts/Web3Context'; // CHANGED: Using real Web3Context
 
 export const Navbar = () => {
-  const { wallet } = useBondContext();
+  const { 
+    account, 
+    isConnected, 
+    connectWallet, 
+    usdcBalance, 
+    isCorrectNetwork, 
+    switchToFuji 
+  } = useWeb3(); // CHANGED: Destructuring from useWeb3
+
+  // Helper to shorten address
+  const shortAddress = account 
+    ? `${account.substring(0, 6)}...${account.substring(account.length - 4)}`
+    : '';
 
   return (
     <motion.nav
@@ -43,39 +55,57 @@ export const Navbar = () => {
           </a>
         </div>
 
-        {/* Wallet Button */}
-        {wallet.isConnected ? (
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex flex-col items-end">
-              <span className="text-xs text-muted-foreground">Balance</span>
-              <span className="text-sm font-mono text-primary">
-                ${wallet.usdcBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC
-              </span>
-            </div>
-            <motion.div
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border"
-              whileHover={{ borderColor: 'hsl(var(--primary) / 0.5)' }}
+        {/* Wallet Button Area */}
+        <div className="flex items-center gap-4">
+            
+          {/* Network Warning Button */}
+          {isConnected && !isCorrectNetwork && (
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={switchToFuji}
+              className="hidden sm:flex animate-pulse"
             >
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <span className="text-sm font-mono">{wallet.shortAddress}</span>
-              <button 
-                onClick={wallet.disconnect}
-                className="ml-2 text-muted-foreground hover:text-foreground transition-colors"
+              <ShieldAlert className="w-4 h-4 mr-2" />
+              Switch to Fuji
+            </Button>
+          )}
+
+          {isConnected ? (
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex flex-col items-end">
+                <span className="text-xs text-muted-foreground">Balance</span>
+                <span className="text-sm font-mono text-primary">
+                  {/* REAL DATA: Displaying formatted USDC balance */}
+                  ${parseFloat(usdcBalance).toFixed(2)} USDC
+                </span>
+              </div>
+              <motion.div
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border"
+                whileHover={{ borderColor: 'hsl(var(--primary) / 0.5)' }}
               >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </motion.div>
-          </div>
-        ) : (
-          <Button
-            className="btn-connect glow-green"
-            onClick={wallet.connect}
-            disabled={wallet.isConnecting}
-          >
-            <Wallet className="w-4 h-4 mr-2" />
-            {wallet.isConnecting ? 'Connecting...' : 'Connect Wallet'}
-          </Button>
-        )}
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                {/* REAL DATA: Displaying real wallet address */}
+                <span className="text-sm font-mono">{shortAddress}</span>
+                <button 
+                  onClick={() => window.location.reload()} // Simple disconnect by reload for now
+                  className="ml-2 text-muted-foreground hover:text-foreground transition-colors"
+                  title="Disconnect"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </motion.div>
+            </div>
+          ) : (
+            <Button
+              className="btn-connect glow-green"
+              onClick={connectWallet}
+            >
+              <Wallet className="w-4 h-4 mr-2" />
+              Connect Wallet
+            </Button>
+          )}
+        </div>
       </div>
     </motion.nav>
   );

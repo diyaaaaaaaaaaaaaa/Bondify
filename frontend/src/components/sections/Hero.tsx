@@ -4,10 +4,10 @@ import { ArrowRight, Wallet, Shield, TrendingUp, Coins } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollIndicator } from '@/components/layout/ScrollIndicator';
 import { BackgroundPaths } from '@/components/ui/background-paths';
-import { useBondContext } from '@/context/BondContext';
+import { useBondify } from '@/hooks/useBondify'; // CHANGED
 
 export const Hero = () => {
-  const { wallet } = useBondContext();
+  const { isConnected, connectWallet, transactionStatus } = useBondify(); // CHANGED
   const containerRef = useRef<HTMLDivElement>(null);
   
   const { scrollYProgress } = useScroll({
@@ -80,16 +80,16 @@ export const Hero = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.3 }}
           >
-            {wallet.isConnected ? (
+            {isConnected ? (
               <Button size="lg" className="btn-buy glow-green px-8 py-6 text-lg font-semibold" asChild>
                 <a href="#marketplace">
                   EXPLORE BONDS <ArrowRight className="ml-2 w-5 h-5" />
                 </a>
               </Button>
             ) : (
-              <Button size="lg" className="btn-connect glow-green px-8 py-6 text-lg font-semibold" onClick={wallet.connect}>
+              <Button size="lg" className="btn-connect glow-green px-8 py-6 text-lg font-semibold" onClick={connectWallet}>
                 <Wallet className="mr-2 w-5 h-5" />
-                {wallet.isConnecting ? 'Connecting...' : 'CONNECT WALLET'}
+                {transactionStatus === 'CONNECTING...' ? 'Connecting...' : 'CONNECT WALLET'}
               </Button>
             )}
             <Button size="lg" variant="outline" className="px-8 py-6 text-lg text-primary border-primary/50 hover:bg-primary/10" asChild>

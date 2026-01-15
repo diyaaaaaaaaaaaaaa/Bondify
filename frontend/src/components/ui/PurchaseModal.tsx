@@ -1,12 +1,20 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
-import { Bond } from '@/data/mockBonds';
-import { useBondContext } from '@/context/BondContext';
+import { useBondify } from '@/hooks/useBondify';
 import { Button } from '@/components/ui/button';
 
+export interface PurchaseModalBond {
+  id: string;
+  name: string;
+  shortName: string;
+  interestRate: number;
+  minInvestment: number;
+  [key: string]: any; 
+}
+
 interface PurchaseModalProps {
-  bond: Bond | null;
+  bond: PurchaseModalBond | null;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -14,7 +22,10 @@ interface PurchaseModalProps {
 type ModalState = 'input' | 'processing' | 'success' | 'error';
 
 export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => {
-  const { wallet, buyBond } = useBondContext();
+  const { isConnected, usdcBalance, mintBond } = useBondify();
+  
+  const walletBalance = parseFloat(usdcBalance || '0');
+
   const [amount, setAmount] = useState('');
   const [state, setState] = useState<ModalState>('input');
 
@@ -22,23 +33,38 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
 
   const numericAmount = parseFloat(amount) || 0;
   const tokensReceived = Math.floor(numericAmount / bond.minInvestment);
-  const isValid = numericAmount >= bond.minInvestment && numericAmount <= wallet.usdcBalance;
+  const isValid = numericAmount >= bond.minInvestment && numericAmount <= walletBalance;
 
   const handlePurchase = async () => {
     if (!isValid) return;
     
     setState('processing');
     
-    const success = await buyBond(bond.id, numericAmount);
-    
-    if (success) {
+    try {
+      await mintBond(numericAmount.toString()); 
+      
       setState('success');
+
+      // --- PERSISTENCE LOGIC START ---
+      const newHolding = {
+        id: bond.id,
+        name: bond.name || bond.shortName,
+        amount: tokensReceived,
+        timestamp: Date.now()
+      };
+      const existing = localStorage.getItem('bond_holdings');
+      const history = existing ? JSON.parse(existing) : [];
+      history.push(newHolding);
+      localStorage.setItem('bond_holdings', JSON.stringify(history));
+      // --- PERSISTENCE LOGIC END ---
+
       setTimeout(() => {
         setState('input');
         setAmount('');
         onClose();
       }, 2000);
-    } else {
+    } catch (error) {
+      console.error(error);
       setState('error');
       setTimeout(() => setState('input'), 3000);
     }
@@ -55,7 +81,6 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
           <motion.div
             className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100]"
             initial={{ opacity: 0 }}
@@ -64,7 +89,6 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
             onClick={handleClose}
           />
 
-          {/* Modal */}
           <motion.div
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md z-[101]"
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -73,11 +97,9 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
             transition={{ type: 'spring', damping: 25 }}
           >
             <div className="bg-card border border-border rounded-3xl p-6 mx-4 relative overflow-hidden">
-              {/* Glow effect */}
               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/5" />
               
               <div className="relative z-10">
-                {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h2 className="text-xl font-bold uppercase tracking-tight">Purchase {bond.shortName}</h2>
@@ -94,7 +116,6 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
 
                 {state === 'input' && (
                   <>
-                    {/* Amount Input */}
                     <div className="mb-4">
                       <label className="text-xs text-muted-foreground uppercase tracking-wider block mb-2">
                         Investment Amount (USDC)
@@ -108,18 +129,17 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
                           className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-lg font-mono focus:outline-none focus:border-primary transition-colors"
                         />
                         <button
-                          onClick={() => setAmount(wallet.usdcBalance.toFixed(0))}
+                          onClick={() => setAmount(walletBalance.toString())}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-primary hover:text-primary/80 transition-colors"
                         >
                           MAX
                         </button>
                       </div>
                       <p className="text-xs text-muted-foreground mt-2">
-                        Available: ${wallet.usdcBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC
+                        Available: ${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC
                       </p>
                     </div>
 
-                    {/* Preview */}
                     {numericAmount > 0 && (
                       <motion.div
                         className="bg-muted/50 rounded-xl p-4 mb-6"
@@ -139,13 +159,12 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
                       </motion.div>
                     )}
 
-                    {/* Purchase Button */}
                     <Button
                       className="btn-buy w-full py-6 text-lg glow-green"
                       onClick={handlePurchase}
-                      disabled={!isValid || !wallet.isConnected}
+                      disabled={!isValid || !isConnected}
                     >
-                      {!wallet.isConnected 
+                      {!isConnected 
                         ? 'Connect Wallet First' 
                         : !isValid 
                           ? `Min. ₹${bond.minInvestment}` 

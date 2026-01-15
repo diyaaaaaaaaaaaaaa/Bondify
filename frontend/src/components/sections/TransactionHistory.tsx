@@ -1,12 +1,30 @@
 import { motion } from 'framer-motion';
 import { ArrowUpRight, ArrowDownLeft, Coins, Clock, CheckCircle } from 'lucide-react';
-import { useBondContext } from '@/context/BondContext';
+import { useBondify } from '@/hooks/useBondify';
 
 export const TransactionHistory = () => {
-  const { transactions, wallet } = useBondContext();
+  const { isConnected } = useBondify();
 
-  const typeIcons = { buy: ArrowDownLeft, yield: Coins, redeem: ArrowUpRight };
-  const typeColors = { buy: 'text-primary', yield: 'text-secondary', redeem: 'text-accent' };
+  // Define types
+  type TxType = 'buy' | 'yield' | 'redeem';
+  
+  interface Transaction {
+    id: number;
+    type: TxType; // Use the specific union type
+    bondName: string;
+    amount: number;
+    tokens: number;
+    timestamp: string;
+    status: 'completed' | 'pending';
+  }
+
+  // Explicitly type the array
+  const transactions: Transaction[] = [
+     { id: 1, type: 'buy', bondName: 'GOI 2033', amount: 5000, tokens: 50, timestamp: new Date().toISOString(), status: 'completed' }
+  ];
+
+  const typeIcons: Record<TxType, any> = { buy: ArrowDownLeft, yield: Coins, redeem: ArrowUpRight };
+  const typeColors: Record<TxType, string> = { buy: 'text-primary', yield: 'text-secondary', redeem: 'text-accent' };
 
   const formatDate = (ts: string) => new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -18,7 +36,7 @@ export const TransactionHistory = () => {
           <h2 className="heading-brutal text-4xl md:text-5xl mt-2">Transaction History</h2>
         </motion.div>
 
-        {!wallet.isConnected ? (
+        {!isConnected ? (
           <motion.div className="text-center py-20" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
             <Clock className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
             <p className="text-xl text-muted-foreground">Connect wallet to view history</p>

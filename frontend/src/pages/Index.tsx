@@ -1,4 +1,3 @@
-import { BondProvider } from '@/context/BondContext';
 import { CustomCursor } from '@/components/layout/CustomCursor';
 import { FuturisticBackground } from '@/components/ui/FuturisticBackground';
 import { Navbar } from '@/components/layout/Navbar';
@@ -11,21 +10,23 @@ import { Footer } from '@/components/sections/Footer';
 
 const Index = () => {
   return (
-    <BondProvider>
-      <div className="min-h-screen text-foreground relative">
-        <FuturisticBackground />
-        <CustomCursor />
-        <Navbar />
-        <main>
-          <Hero />
-          <BondMarketplace />
-          <Portfolio />
-          <Redeem />
-          <TransactionHistory />
-        </main>
-        <Footer />
-      </div>
-    </BondProvider>
+    <div className="min-h-screen text-foreground relative">
+      <FuturisticBackground />
+      {/* Custom Cursor is hidden on mobile via CSS usually, or handled inside component */}
+      <CustomCursor />
+      
+      <Navbar />
+      
+      <main>
+        <Hero />
+        <BondMarketplace />
+        <Portfolio />
+        <Redeem />
+        <TransactionHistory />
+      </main>
+      
+      <Footer />
+    </div>
   );
 };
 
