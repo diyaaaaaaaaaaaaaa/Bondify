@@ -1,62 +1,55 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowUpRight, ArrowDownLeft, Coins, Clock, CheckCircle } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, Clock, CheckCircle } from 'lucide-react';
 import { useBondify } from '@/hooks/useBondify';
 
-interface HistoryItem {
-  id: string;
-  name: string;
-  amount: number;
-  timestamp: number;
-}
-
 export const TransactionHistory = () => {
-  const { isConnected } = useBondify();
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const { isConnected, bondBalance } = useBondify(); // bondBalance dependency ensures refresh
+  const [history, setHistory] = useState<any[]>([]);
 
   useEffect(() => {
     if (!isConnected) return;
     const stored = localStorage.getItem('bond_holdings');
     if (stored) {
-      setHistory(JSON.parse(stored).sort((a: any, b: any) => b.timestamp - a.timestamp));
+      // Show all transactions (buys are +, redeems are -)
+      const parsed = JSON.parse(stored).sort((a: any, b: any) => b.timestamp - a.timestamp);
+      setHistory(parsed);
     }
-  }, [isConnected]);
-
-  const formatDate = (ts: number) => new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }, [isConnected, bondBalance]);
 
   return (
     <section id="history" className="min-h-screen py-24 px-6 bg-card/30">
       <div className="max-w-4xl mx-auto">
         <motion.div className="mb-12" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-          <span className="text-xs text-primary uppercase tracking-widest">Activity</span>
           <h2 className="heading-brutal text-4xl md:text-5xl mt-2">Transaction History</h2>
         </motion.div>
 
-        {!isConnected ? (
-          <motion.div className="text-center py-20" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
-            <Clock className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <p className="text-xl text-muted-foreground">Connect wallet to view history</p>
-          </motion.div>
-        ) : (
+        {!isConnected ? <p className="text-center">Connect Wallet</p> : (
           <div className="space-y-3">
-            {history.length > 0 ? history.map((tx, i) => (
-              <motion.div key={i} className="terminal-zone bg-card border border-border rounded-xl p-4 flex items-center justify-between" initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.05 * i }}>
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary"><ArrowDownLeft className="w-5 h-5" /></div>
-                  <div>
-                    <p className="font-semibold capitalize">Buy Bond</p>
-                    <p className="text-xs text-muted-foreground">{tx.name} • {formatDate(tx.timestamp)}</p>
+            {history.length > 0 ? history.map((tx, i) => {
+              const isBuy = tx.amount > 0;
+              return (
+                <motion.div key={i} className="bg-card border border-border rounded-xl p-4 flex justify-between items-center" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isBuy ? 'bg-primary/10 text-primary' : 'bg-accent/10 text-accent'}`}>
+                      {isBuy ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+                    </div>
+                    <div>
+                      <p className="font-semibold">{isBuy ? 'Buy Bond' : 'Redeem Bond'}</p>
+                      <p className="text-xs text-muted-foreground">{tx.name} • {new Date(tx.timestamp).toLocaleDateString()}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right flex items-center gap-4">
-                  <div>
-                    <p className="font-mono font-semibold text-primary">-₹{(tx.amount * 100).toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">{tx.amount} tokens</p>
+                  <div className="text-right">
+                    <p className={`font-mono font-semibold ${isBuy ? 'text-primary' : 'text-accent'}`}>
+                      {isBuy ? '-' : '+'}₹{Math.abs(tx.amount * 100).toLocaleString()}
+                    </p>
+                    <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
+                      {Math.abs(tx.amount)} tokens <CheckCircle className="w-3 h-3 text-green-500" />
+                    </div>
                   </div>
-                  <CheckCircle className="w-5 h-5 text-primary" />
-                </div>
-              </motion.div>
-            )) : <div className="text-center py-8 text-muted-foreground">No transaction history.</div>}
+                </motion.div>
+              );
+            }) : <p className="text-center text-muted-foreground">No history found.</p>}
           </div>
         )}
       </div>
