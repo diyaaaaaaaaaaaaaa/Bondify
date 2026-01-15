@@ -1,32 +1,28 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowUpRight, ArrowDownLeft, Coins, Clock, CheckCircle } from 'lucide-react';
 import { useBondify } from '@/hooks/useBondify';
 
+interface HistoryItem {
+  id: string;
+  name: string;
+  amount: number;
+  timestamp: number;
+}
+
 export const TransactionHistory = () => {
   const { isConnected } = useBondify();
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
-  // Define types
-  type TxType = 'buy' | 'yield' | 'redeem';
-  
-  interface Transaction {
-    id: number;
-    type: TxType; // Use the specific union type
-    bondName: string;
-    amount: number;
-    tokens: number;
-    timestamp: string;
-    status: 'completed' | 'pending';
-  }
+  useEffect(() => {
+    if (!isConnected) return;
+    const stored = localStorage.getItem('bond_holdings');
+    if (stored) {
+      setHistory(JSON.parse(stored).sort((a: any, b: any) => b.timestamp - a.timestamp));
+    }
+  }, [isConnected]);
 
-  // Explicitly type the array
-  const transactions: Transaction[] = [
-     { id: 1, type: 'buy', bondName: 'GOI 2033', amount: 5000, tokens: 50, timestamp: new Date().toISOString(), status: 'completed' }
-  ];
-
-  const typeIcons: Record<TxType, any> = { buy: ArrowDownLeft, yield: Coins, redeem: ArrowUpRight };
-  const typeColors: Record<TxType, string> = { buy: 'text-primary', yield: 'text-secondary', redeem: 'text-accent' };
-
-  const formatDate = (ts: string) => new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const formatDate = (ts: number) => new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
   return (
     <section id="history" className="min-h-screen py-24 px-6 bg-card/30">
@@ -43,31 +39,24 @@ export const TransactionHistory = () => {
           </motion.div>
         ) : (
           <div className="space-y-3">
-            {transactions.map((tx, i) => {
-              const Icon = typeIcons[tx.type];
-              return (
-                <motion.div key={tx.id} className="terminal-zone bg-card border border-border rounded-xl p-4 flex items-center justify-between" initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.05 * i }}>
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-lg bg-muted flex items-center justify-center ${typeColors[tx.type]}`}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="font-semibold capitalize">{tx.type === 'yield' ? 'Yield Payout' : tx.type}</p>
-                      <p className="text-xs text-muted-foreground">{tx.bondName} • {formatDate(tx.timestamp)}</p>
-                    </div>
+            {history.length > 0 ? history.map((tx, i) => (
+              <motion.div key={i} className="terminal-zone bg-card border border-border rounded-xl p-4 flex items-center justify-between" initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.05 * i }}>
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary"><ArrowDownLeft className="w-5 h-5" /></div>
+                  <div>
+                    <p className="font-semibold capitalize">Buy Bond</p>
+                    <p className="text-xs text-muted-foreground">{tx.name} • {formatDate(tx.timestamp)}</p>
                   </div>
-                  <div className="text-right flex items-center gap-4">
-                    <div>
-                      <p className={`font-mono font-semibold ${tx.type === 'buy' ? '' : typeColors[tx.type]}`}>
-                        {tx.type === 'buy' ? '-' : '+'}₹{tx.amount.toLocaleString()}
-                      </p>
-                      {tx.tokens && <p className="text-xs text-muted-foreground">{tx.tokens} tokens</p>}
-                    </div>
-                    {tx.status === 'completed' ? <CheckCircle className="w-5 h-5 text-primary" /> : <Clock className="w-5 h-5 text-yellow-500" />}
+                </div>
+                <div className="text-right flex items-center gap-4">
+                  <div>
+                    <p className="font-mono font-semibold text-primary">-₹{(tx.amount * 100).toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">{tx.amount} tokens</p>
                   </div>
-                </motion.div>
-              );
-            })}
+                  <CheckCircle className="w-5 h-5 text-primary" />
+                </div>
+              </motion.div>
+            )) : <div className="text-center py-8 text-muted-foreground">No transaction history.</div>}
           </div>
         )}
       </div>

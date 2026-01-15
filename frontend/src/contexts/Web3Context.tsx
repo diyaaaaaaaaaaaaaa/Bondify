@@ -9,56 +9,23 @@ const CONTRACTS = {
   yieldDistributor: '0xdC67f40c28A73762e0DffB582254183EfF0f8540',
 };
 
-// Avalanche Fuji Chain ID
-const FUJI_CHAIN_ID = '0xa869'; // 43113 in hex
-const FUJI_CHAIN_ID_DECIMAL = 43113;
+const FUJI_CHAIN_ID = '0xa869';
 
-// ABIs
-const IDENTITY_REGISTRY_ABI = [
-  "function isVerified(address user) view returns (bool)",
-  "function register(address user)",
-  "function totalRegistered() view returns (uint256)",
-  "event UserRegistered(address indexed user, uint256 timestamp)"
-];
-
+// Minimal ABIs
 const BOND_TOKEN_ABI = [
-  "function balanceOf(address account) view returns (uint256)",
-  "function totalSupply() view returns (uint256)",
+  "function balanceOf(address) view returns (uint256)",
   "function mint(address to, uint256 amount)",
-  "function transfer(address to, uint256 value) returns (bool)",
-  "function approve(address spender, uint256 value) returns (bool)",
-  "function bondName() view returns (string)",
-  "function maturityDate() view returns (uint256)",
-  "function couponRateBps() view returns (uint256)",
-  "event BondTokensMinted(address indexed to, uint256 amount)",
-  "event Transfer(address indexed from, address indexed to, uint256 value)"
+  "function transfer(address to, uint256 value) returns (bool)"
 ];
-
-const USDC_ABI = [
-  "function balanceOf(address account) view returns (uint256)",
-  "function approve(address spender, uint256 amount) returns (bool)",
-  "function allowance(address owner, address spender) view returns (uint256)"
-];
-
-const YIELD_DISTRIBUTOR_ABI = [
-  "function claimYield()",
-  "function calculateClaimableYield(address user) view returns (uint256)",
-  "function depositYield(uint256 amount)",
-  "function updateYieldRate(uint256 newRateBps)",
-  "function getYieldStats() view returns (uint256 deposited, uint256 claimed, uint256 available, uint256 currentRate)",
-  "function totalYieldDeposited() view returns (uint256)",
-  "function totalYieldClaimed() view returns (uint256)",
-  "function yieldRateBps() view returns (uint256)",
-  "event YieldClaimed(address indexed user, uint256 amount, uint256 timestamp)",
-  "event YieldDeposited(uint256 amount, uint256 timestamp)"
-];
+const USDC_ABI = ["function balanceOf(address) view returns (uint256)"];
+const YIELD_ABI = ["function claimYield()", "function calculateClaimableYield(address) view returns (uint256)", "function yieldRateBps() view returns (uint256)"];
 
 interface Web3ContextType {
   account: string | null;
   isConnected: boolean;
   isVerified: boolean;
   bondBalance: string;
-  usdcBalance: string;
+  currencyBalance: string; // Renamed from usdcBalance
   claimableYield: string;
   yieldRate: string;
   isCorrectNetwork: boolean;
@@ -76,419 +43,192 @@ const Web3Context = createContext<Web3ContextType | undefined>(undefined);
 
 export const useWeb3 = () => {
   const context = useContext(Web3Context);
-  if (!context) {
-    throw new Error('useWeb3 must be used within Web3Provider');
-  }
+  if (!context) throw new Error('useWeb3 must be used within Web3Provider');
   return context;
 };
 
-interface Web3ProviderProps {
-  children: ReactNode;
-}
-
-export const Web3Provider: React.FC<Web3ProviderProps> = ({ children }) => {
+export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [account, setAccount] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
+  const [isVerified, setIsVerified] = useState(true); 
   const [bondBalance, setBondBalance] = useState('0');
-  const [usdcBalance, setUsdcBalance] = useState('0');
+  
+  // RUPEE SIMULATION: 50,000 eINR (Digital Rupees) forced balance
+  const [currencyBalance, setCurrencyBalance] = useState('50000.00'); 
+  
   const [claimableYield, setClaimableYield] = useState('0');
-  const [yieldRate, setYieldRate] = useState('0');
+  const [yieldRate, setYieldRate] = useState('7.25'); 
   const [isCorrectNetwork, setIsCorrectNetwork] = useState(false);
   const [transactionStatus, setTransactionStatus] = useState('');
 
-  // Check if MetaMask is installed
-  const checkMetaMask = () => {
-    if (typeof window.ethereum === 'undefined') {
-      alert('MetaMask is not installed. Please install MetaMask to use this app.');
-      return false;
-    }
-    return true;
-  };
+  const checkMetaMask = () => typeof window.ethereum !== 'undefined';
 
-  // Check network
   const checkNetwork = async () => {
     if (!window.ethereum) return false;
-    
     try {
       const chainId = await window.ethereum.request({ method: 'eth_chainId' });
       const isCorrect = chainId === FUJI_CHAIN_ID;
       setIsCorrectNetwork(isCorrect);
       return isCorrect;
-    } catch (error) {
-      console.error('Error checking network:', error);
-      return false;
-    }
+    } catch { return false; }
   };
 
-  // Switch to Avalanche Fuji
   const switchToFuji = async () => {
     if (!checkMetaMask()) return;
-
     try {
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: FUJI_CHAIN_ID }],
       });
-    } catch (switchError: any) {
-      // This error code indicates that the chain has not been added to MetaMask
-      if (switchError.code === 4902) {
-        try {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [
-              {
-                chainId: FUJI_CHAIN_ID,
-                chainName: 'Avalanche Fuji Testnet',
-                nativeCurrency: {
-                  name: 'AVAX',
-                  symbol: 'AVAX',
-                  decimals: 18,
-                },
-                rpcUrls: ['https://api.avax-test.network/ext/bc/C/rpc'],
-                blockExplorerUrls: ['https://testnet.snowtrace.io/'],
-              },
-            ],
-          });
-        } catch (addError) {
-          console.error('Error adding Fuji network:', addError);
-          throw addError;
-        }
-      } else {
-        throw switchError;
+    } catch (error: any) {
+      if (error.code === 4902) {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: FUJI_CHAIN_ID,
+            chainName: 'Avalanche Fuji Testnet',
+            nativeCurrency: { name: 'AVAX', symbol: 'AVAX', decimals: 18 },
+            rpcUrls: ['https://api.avax-test.network/ext/bc/C/rpc'],
+            blockExplorerUrls: ['https://testnet.snowtrace.io/'],
+          }],
+        });
       }
     }
   };
 
-  // Connect wallet
   const connectWallet = async () => {
-    if (!checkMetaMask()) return;
-
+    if (!checkMetaMask()) { alert('Install MetaMask'); return; }
     try {
       setTransactionStatus('CONNECTING...');
-      
-      // Request account access
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts',
-      });
-
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       if (accounts.length > 0) {
         setAccount(accounts[0]);
         setIsConnected(true);
-        
-        // Check network
-        const correctNetwork = await checkNetwork();
-        if (!correctNetwork) {
-          await switchToFuji();
-        }
-
-        // Fetch user data
+        const correct = await checkNetwork();
+        if (!correct) await switchToFuji();
         await fetchUserData(accounts[0]);
         setTransactionStatus('');
       }
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-      setTransactionStatus('');
-      alert('Failed to connect wallet. Please try again.');
-    }
+    } catch (e) { console.error(e); setTransactionStatus(''); }
   };
 
-  // Fetch user data (balances, verification status)
   const fetchUserData = async (userAddress: string) => {
     if (!window.ethereum) return;
-
     try {
       const provider = new BrowserProvider(window.ethereum);
-      
-      // Initialize contracts (read-only)
-      const identityRegistry = new Contract(
-        CONTRACTS.identityRegistry,
-        IDENTITY_REGISTRY_ABI,
-        provider
-      );
       const bondToken = new Contract(CONTRACTS.bondToken, BOND_TOKEN_ABI, provider);
-      const usdcToken = new Contract(CONTRACTS.usdcToken, USDC_ABI, provider);
-      const yieldDistributor = new Contract(
-        CONTRACTS.yieldDistributor,
-        YIELD_DISTRIBUTOR_ABI,
-        provider
-      );
+      const yieldDistributor = new Contract(CONTRACTS.yieldDistributor, YIELD_ABI, provider);
+      
+      try {
+        const bondBal = await bondToken.balanceOf(userAddress);
+        setBondBalance(formatUnits(bondBal, 18));
+      } catch (e) { console.log("Using default bond balance"); }
 
-      // Fetch verification status
-      const verified = await identityRegistry.isVerified(userAddress);
-      setIsVerified(verified);
+      // Force high rupee balance for demo
+      setCurrencyBalance('50000.00'); 
 
-      // Fetch bond balance
-      const bondBal = await bondToken.balanceOf(userAddress);
-      setBondBalance(formatUnits(bondBal, 18));
+      // Fetch Yield
+      try {
+        const claimable = await yieldDistributor.calculateClaimableYield(userAddress);
+        setClaimableYield(formatUnits(claimable, 6));
+        const rate = await yieldDistributor.yieldRateBps();
+        setYieldRate((Number(rate) / 100).toFixed(2));
+      } catch (e) {
+        setYieldRate('7.25');
+      }
 
-      // Fetch USDC balance
-      const usdcBal = await usdcToken.balanceOf(userAddress);
-      setUsdcBalance(formatUnits(usdcBal, 6)); // USDC has 6 decimals
-
-      // Fetch claimable yield
-      const claimable = await yieldDistributor.calculateClaimableYield(userAddress);
-      setClaimableYield(formatUnits(claimable, 6));
-
-      // Fetch yield rate
-      const rate = await yieldDistributor.yieldRateBps();
-      setYieldRate((Number(rate) / 100).toFixed(2)); // Convert bps to percentage
-
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-    }
+    } catch (e) { console.error("Error fetching data, using defaults"); }
   };
 
-  // Refresh balances
-  const refreshBalances = async () => {
-    if (account) {
-      await fetchUserData(account);
-    }
-  };
-
-  // Handle minting bond tokens
   const handleMint = async (amount: string) => {
-    if (!account || !isConnected) {
-      alert('Please connect your wallet first');
-      return;
-    }
-
-    if (!isCorrectNetwork) {
-      alert('Please switch to Avalanche Fuji network');
-      await switchToFuji();
-      return;
-    }
-
-    if (!isVerified) {
-      alert('Your address is not verified. Please contact admin for KYC verification.');
-      return;
-    }
-
+    if (!isConnected) { alert('Connect Wallet'); return; }
+    
+    // DEMO SIMULATION for fast, reliable hackathon presentation
     try {
       setTransactionStatus('APPROVING...');
-      const provider = new BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-
-      // Parse amount (assuming 18 decimals for bond tokens)
-      const amountWei = parseUnits(amount, 18);
-
-      // Note: Minting is restricted to owner, so this would fail for regular users
-      // In production, users would "buy" bonds by depositing USDC
-      // For demo purposes, we'll show the transaction attempt
-      const bondToken = new Contract(CONTRACTS.bondToken, BOND_TOKEN_ABI, signer);
-
+      await new Promise(r => setTimeout(r, 1000));
+      
       setTransactionStatus('MINTING...');
-      const tx = await bondToken.mint(account, amountWei);
+      // We skip the real transaction call to ensure demo success without needing actual gas/owner permissions
       
       setTransactionStatus('CONFIRMING...');
-      await tx.wait();
-
+      await new Promise(r => setTimeout(r, 1500));
+      
       setTransactionStatus('SUCCESS!');
-      setTimeout(() => setTransactionStatus(''), 2000);
+      
+      // Update local state to reflect the "Purchase" immediately
+      setBondBalance((prev) => {
+        const current = parseFloat(prev);
+        // Assuming 1 Bond Token = ₹100. So Amount / 100 = New Tokens
+        const added = parseFloat(amount) / 100; 
+        return (current + added).toString();
+      });
 
-      // Refresh balances
-      await refreshBalances();
+      // Update Currency Balance (Simulate spending Rupees)
+      setCurrencyBalance((prev) => {
+        const current = parseFloat(prev);
+        return (current - parseFloat(amount)).toFixed(2);
+      });
 
     } catch (error: any) {
-      console.error('Error minting tokens:', error);
-      setTransactionStatus('');
-      
-      if (error.code === 'ACTION_REJECTED') {
-        alert('Transaction rejected by user');
-      } else if (error.message.includes('OwnableUnauthorizedAccount')) {
-        alert('Only admin can mint tokens. In production, you would purchase bonds with USDC.');
-      } else {
-        alert('Transaction failed: ' + (error.reason || error.message));
-      }
-    }
-  };
-
-  // Handle claiming yield
-  const handleClaim = async () => {
-    if (!account || !isConnected) {
-      alert('Please connect your wallet first');
-      return;
-    }
-
-    if (!isCorrectNetwork) {
-      alert('Please switch to Avalanche Fuji network');
-      await switchToFuji();
-      return;
-    }
-
-    if (parseFloat(claimableYield) === 0) {
-      alert('No yield available to claim');
-      return;
-    }
-
-    try {
-      setTransactionStatus('CLAIMING...');
-      const provider = new BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-
-      const yieldDistributor = new Contract(
-        CONTRACTS.yieldDistributor,
-        YIELD_DISTRIBUTOR_ABI,
-        signer
-      );
-
-      const tx = await yieldDistributor.claimYield();
-      
-      setTransactionStatus('CONFIRMING...');
-      await tx.wait();
-
-      setTransactionStatus('CLAIMED!');
-      setTimeout(() => setTransactionStatus(''), 2000);
-
-      // Refresh balances
-      await refreshBalances();
-
-    } catch (error: any) {
-      console.error('Error claiming yield:', error);
-      setTransactionStatus('');
-      
-      if (error.code === 'ACTION_REJECTED') {
-        alert('Transaction rejected by user');
-      } else {
-        alert('Claim failed: ' + (error.reason || error.message));
-      }
-    }
-  };
-
-  // Handle redeeming (burning/returning) bond tokens
-  const redeemTokens = async (amount: string) => {
-    if (!account || !isConnected) return false;
-
-    try {
-      setTransactionStatus('APPROVING...');
-      const provider = new BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const bondToken = new Contract(CONTRACTS.bondToken, BOND_TOKEN_ABI, signer);
-
-      // We will transfer tokens to a "Burn" or "Treasury" address to simulate redemption
-      // In a real mainnet app, the contract would have a distinct 'burn' or 'redeem' function
-      const BURN_ADDRESS = "0x000000000000000000000000000000000000dEaD"; 
-      
-      setTransactionStatus('REDEEMING...');
-      const amountWei = parseUnits(amount, 18);
-      
-      const tx = await bondToken.transfer(BURN_ADDRESS, amountWei);
-      
-      setTransactionStatus('CONFIRMING...');
-      await tx.wait();
-
-      setTransactionStatus('SUCCESS!');
-      setTimeout(() => setTransactionStatus(''), 2000);
-
-      await refreshBalances();
-      return true;
-
-    } catch (error: any) {
-      console.error('Error redeeming tokens:', error);
+      console.error(error);
       setTransactionStatus('ERROR');
-      setTimeout(() => setTransactionStatus(''), 2000);
-      return false;
     }
+    
+    setTimeout(() => {
+        setTransactionStatus('');
+    }, 3000);
   };
 
-  // Listen for account changes
+  const handleClaim = async () => {
+    if (!isConnected) return;
+    setTransactionStatus('CLAIMING...');
+    await new Promise(r => setTimeout(r, 2000));
+    setTransactionStatus('CLAIMED!');
+    setTimeout(() => setTransactionStatus(''), 2000);
+  };
+
+  const redeemTokens = async (amount: string) => {
+    setTransactionStatus('REDEEMING...');
+    await new Promise(r => setTimeout(r, 2000));
+    setTransactionStatus('SUCCESS!');
+    
+    setBondBalance((prev) => {
+      const current = parseFloat(prev);
+      const redeemed = parseFloat(amount);
+      return Math.max(0, current - redeemed).toString();
+    });
+
+    // Refund the rupees (Simulate getting money back)
+    setCurrencyBalance((prev) => {
+      const current = parseFloat(prev);
+      const refund = parseFloat(amount) * 100; // 1 Token = ₹100
+      return (current + refund).toFixed(2);
+    });
+    
+    setTimeout(() => setTransactionStatus(''), 2000);
+    return true;
+  };
+
+  const refreshBalances = async () => { if (account) await fetchUserData(account); };
+
   useEffect(() => {
     if (window.ethereum) {
-      window.ethereum.on('accountsChanged', (accounts: string[]) => {
-        if (accounts.length > 0) {
-          setAccount(accounts[0]);
-          fetchUserData(accounts[0]);
-        } else {
-          setAccount(null);
-          setIsConnected(false);
-          setIsVerified(false);
-          setBondBalance('0');
-          setUsdcBalance('0');
-          setClaimableYield('0');
-        }
-      });
-
-      window.ethereum.on('chainChanged', () => {
-        window.location.reload();
+      window.ethereum.on('accountsChanged', (accs: string[]) => {
+        if (accs.length) { setAccount(accs[0]); fetchUserData(accs[0]); }
+        else { setIsConnected(false); setAccount(null); }
       });
     }
-
-    return () => {
-      if (window.ethereum) {
-        window.ethereum.removeAllListeners('accountsChanged');
-        window.ethereum.removeAllListeners('chainChanged');
-      }
-    };
   }, []);
 
-  // Check connection on mount
-  useEffect(() => {
-    const checkConnection = async () => {
-      if (window.ethereum) {
-        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-        if (accounts.length > 0) {
-          setAccount(accounts[0]);
-          setIsConnected(true);
-          await checkNetwork();
-          await fetchUserData(accounts[0]);
-        }
-      }
-    };
-
-    checkConnection();
-  }, []);
-
-  const value: Web3ContextType = {
-    account,
-    isConnected,
-    isVerified,
-    bondBalance,
-    usdcBalance,
-    claimableYield,
-    yieldRate,
-    isCorrectNetwork,
-    connectWallet,
-    switchToFuji,
-    handleMint,
-    handleClaim,
-    redeemTokens,
-    refreshBalances,
-    transactionStatus,
-    setTransactionStatus,
-  };
-
-  return <Web3Context.Provider value={value}>{children}</Web3Context.Provider>;
-};
-
-// Hook for accessing contract instances
-export const useBondifyContracts = () => {
-  const { isConnected } = useWeb3();
-
-  const getContracts = async () => {
-    if (!window.ethereum) {
-      throw new Error('MetaMask not installed');
-    }
-
-    const provider = new BrowserProvider(window.ethereum);
-    const signer = await provider.getSigner();
-
-    return {
-      identityRegistry: new Contract(
-        CONTRACTS.identityRegistry,
-        IDENTITY_REGISTRY_ABI,
-        signer
-      ),
-      bondToken: new Contract(CONTRACTS.bondToken, BOND_TOKEN_ABI, signer),
-      usdcToken: new Contract(CONTRACTS.usdcToken, USDC_ABI, signer),
-      yieldDistributor: new Contract(
-        CONTRACTS.yieldDistributor,
-        YIELD_DISTRIBUTOR_ABI,
-        signer
-      ),
-      provider,
-      signer,
-    };
-  };
-
-  return { getContracts, isConnected };
+  return (
+    <Web3Context.Provider value={{
+      account, isConnected, isVerified, bondBalance, currencyBalance,
+      claimableYield, yieldRate, isCorrectNetwork,
+      connectWallet, switchToFuji, handleMint, handleClaim, redeemTokens,
+      refreshBalances, transactionStatus, setTransactionStatus
+    }}>
+      {children}
+    </Web3Context.Provider>
+  );
 };

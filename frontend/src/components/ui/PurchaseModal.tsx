@@ -22,9 +22,10 @@ interface PurchaseModalProps {
 type ModalState = 'input' | 'processing' | 'success' | 'error';
 
 export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => {
-  const { isConnected, usdcBalance, mintBond } = useBondify();
+  // Use currencyBalance from the hook
+  const { isConnected, currencyBalance, mintBond } = useBondify();
   
-  const walletBalance = parseFloat(usdcBalance || '0');
+  const walletBalance = parseFloat(currencyBalance || '0');
 
   const [amount, setAmount] = useState('');
   const [state, setState] = useState<ModalState>('input');
@@ -32,7 +33,8 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
   if (!bond) return null;
 
   const numericAmount = parseFloat(amount) || 0;
-  const tokensReceived = Math.floor(numericAmount / bond.minInvestment);
+  // Logic: 1 Bond Token = ₹100 (Standard Face Value)
+  const tokensReceived = Math.floor(numericAmount / 100); 
   const isValid = numericAmount >= bond.minInvestment && numericAmount <= walletBalance;
 
   const handlePurchase = async () => {
@@ -45,7 +47,7 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
       
       setState('success');
 
-      // --- PERSISTENCE LOGIC START ---
+      // Persistence for Portfolio
       const newHolding = {
         id: bond.id,
         name: bond.name || bond.shortName,
@@ -56,7 +58,6 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
       const history = existing ? JSON.parse(existing) : [];
       history.push(newHolding);
       localStorage.setItem('bond_holdings', JSON.stringify(history));
-      // --- PERSISTENCE LOGIC END ---
 
       setTimeout(() => {
         setState('input');
@@ -105,11 +106,7 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
                     <h2 className="text-xl font-bold uppercase tracking-tight">Purchase {bond.shortName}</h2>
                     <p className="text-sm text-muted-foreground">{bond.interestRate}% APY</p>
                   </div>
-                  <button
-                    onClick={handleClose}
-                    className="p-2 rounded-full hover:bg-muted transition-colors"
-                    disabled={state === 'processing'}
-                  >
+                  <button onClick={handleClose} className="p-2 rounded-full hover:bg-muted transition-colors" disabled={state === 'processing'}>
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -118,7 +115,7 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
                   <>
                     <div className="mb-4">
                       <label className="text-xs text-muted-foreground uppercase tracking-wider block mb-2">
-                        Investment Amount (USDC)
+                        Investment Amount (₹)
                       </label>
                       <div className="relative">
                         <input
@@ -136,16 +133,12 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
                         </button>
                       </div>
                       <p className="text-xs text-muted-foreground mt-2">
-                        Available: ${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC
+                        Available: ₹{walletBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                       </p>
                     </div>
 
                     {numericAmount > 0 && (
-                      <motion.div
-                        className="bg-muted/50 rounded-xl p-4 mb-6"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                      >
+                      <motion.div className="bg-muted/50 rounded-xl p-4 mb-6" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-sm text-muted-foreground">Tokens Received</span>
                           <span className="text-lg font-bold text-primary font-mono">{tokensReceived} BOND</span>
@@ -167,18 +160,14 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
                       {!isConnected 
                         ? 'Connect Wallet First' 
                         : !isValid 
-                          ? `Min. ₹${bond.minInvestment}` 
+                          ? (numericAmount > walletBalance ? 'Insufficient Funds' : `Min. ₹${bond.minInvestment}`)
                           : `Confirm Purchase`}
                     </Button>
                   </>
                 )}
 
                 {state === 'processing' && (
-                  <motion.div
-                    className="flex flex-col items-center py-8"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                  >
+                  <motion.div className="flex flex-col items-center py-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
                     <p className="text-lg font-semibold">Processing Transaction...</p>
                     <p className="text-sm text-muted-foreground">Confirm in your wallet</p>
@@ -186,31 +175,17 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
                 )}
 
                 {state === 'success' && (
-                  <motion.div
-                    className="flex flex-col items-center py-8"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                  >
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: 'spring', damping: 10 }}
-                    >
+                  <motion.div className="flex flex-col items-center py-8" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}>
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 10 }}>
                       <CheckCircle className="w-16 h-16 text-primary mb-4" />
                     </motion.div>
                     <p className="text-xl font-bold text-primary">Transaction Successful!</p>
-                    <p className="text-sm text-muted-foreground">
-                      You received {tokensReceived} {bond.shortName} tokens
-                    </p>
+                    <p className="text-sm text-muted-foreground">You received {tokensReceived} {bond.shortName} tokens</p>
                   </motion.div>
                 )}
 
                 {state === 'error' && (
-                  <motion.div
-                    className="flex flex-col items-center py-8"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                  >
+                  <motion.div className="flex flex-col items-center py-8" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}>
                     <AlertCircle className="w-16 h-16 text-destructive mb-4" />
                     <p className="text-xl font-bold text-destructive">Transaction Failed</p>
                     <p className="text-sm text-muted-foreground">Please try again</p>

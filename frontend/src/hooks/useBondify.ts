@@ -6,7 +6,7 @@ export const useBondify = () => {
     isConnected,
     connectWallet,
     bondBalance,
-    usdcBalance,
+    currencyBalance, // Changed from usdcBalance
     claimableYield,
     yieldRate,
     handleMint,
@@ -23,7 +23,7 @@ export const useBondify = () => {
     account,
     isConnected,
     bondBalance,
-    usdcBalance,
+    currencyBalance, // Return as currencyBalance
     claimableYield,
     yieldRate,
     isVerified,

@@ -1,17 +1,17 @@
 import { motion } from 'framer-motion';
-import { Wallet, LogOut, ShieldAlert } from 'lucide-react'; // Added ShieldAlert for verification warning
+import { Wallet, LogOut, ShieldAlert } from 'lucide-react'; 
 import { Button } from '@/components/ui/button';
-import { useWeb3 } from '@/contexts/Web3Context'; // CHANGED: Using real Web3Context
+import { useWeb3 } from '@/contexts/Web3Context'; 
 
 export const Navbar = () => {
   const { 
     account, 
     isConnected, 
     connectWallet, 
-    usdcBalance, 
+    currencyBalance, // UPDATED
     isCorrectNetwork, 
     switchToFuji 
-  } = useWeb3(); // CHANGED: Destructuring from useWeb3
+  } = useWeb3();
 
   // Helper to shorten address
   const shortAddress = account 
@@ -76,8 +76,8 @@ export const Navbar = () => {
               <div className="hidden sm:flex flex-col items-end">
                 <span className="text-xs text-muted-foreground">Balance</span>
                 <span className="text-sm font-mono text-primary">
-                  {/* REAL DATA: Displaying formatted USDC balance */}
-                  ${parseFloat(usdcBalance).toFixed(2)} USDC
+                  {/* RUPEE DISPLAY */}
+                  ₹{parseFloat(currencyBalance).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </span>
               </div>
               <motion.div
@@ -85,10 +85,9 @@ export const Navbar = () => {
                 whileHover={{ borderColor: 'hsl(var(--primary) / 0.5)' }}
               >
                 <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                {/* REAL DATA: Displaying real wallet address */}
                 <span className="text-sm font-mono">{shortAddress}</span>
                 <button 
-                  onClick={() => window.location.reload()} // Simple disconnect by reload for now
+                  onClick={() => window.location.reload()} 
                   className="ml-2 text-muted-foreground hover:text-foreground transition-colors"
                   title="Disconnect"
                 >

@@ -20,7 +20,7 @@ export interface Bond {
   issuer: string;
   risk: 'Low' | 'Medium' | 'High';
 
-  // Legacy Props
+  // Legacy Props (Required for Modal compatibility)
   name: string;
   shortName: string;
   interestRate: number;
@@ -39,28 +39,25 @@ export interface Bond {
 const generateSmoothHistory = (baseYield: number, volatility: number, trend: 'up' | 'down' | 'flat' = 'flat') => {
   const points = 24;
   return Array.from({ length: points }, (_, i) => {
-    // Create a smooth curve using sine waves
     const timeFactor = i / points;
-    const wave1 = Math.sin(timeFactor * Math.PI * 2) * (volatility * 0.3); // Gentle wave
-    const wave2 = Math.sin(timeFactor * Math.PI * 4) * (volatility * 0.1); // Micro fluctuations
+    const wave1 = Math.sin(timeFactor * Math.PI * 2) * (volatility * 0.3); 
+    const wave2 = Math.sin(timeFactor * Math.PI * 4) * (volatility * 0.1); 
     
-    // Add trend drift
     let trendDrift = 0;
     if (trend === 'up') trendDrift = (i / points) * (volatility * 0.8);
     if (trend === 'down') trendDrift = -(i / points) * (volatility * 0.8);
 
-    // Combine for final value
     const value = baseYield + wave1 + wave2 + trendDrift;
     
     return {
       time: `${i}:00`,
-      value: Number(value.toFixed(4)), // Keep precision
+      value: Number(value.toFixed(4)),
     };
   });
 };
 
 const REAL_BONDS: Bond[] = [
-  // 1. NABARD (Corporate/Infra) - Medium Volatility, Upward Trend
+  // 1. NABARD
   {
     id: 'nabard-2030',
     ticker: 'INFRA 2030',
@@ -86,7 +83,7 @@ const REAL_BONDS: Bond[] = [
     available: true,
     riskLevel: 'Medium'
   },
-  // 2. GOI 2033 (Sovereign) - Low Volatility, Flat Trend
+  // 2. GOI 2033
   {
     id: 'goi-2033',
     ticker: 'GOI 2033',
@@ -112,7 +109,7 @@ const REAL_BONDS: Bond[] = [
     available: true,
     riskLevel: 'Low'
   },
-  // 3. IRFC (PSU) - Low Volatility, Slight Dip
+  // 3. IRFC
   {
     id: 'irfc-2028',
     ticker: 'RAIL 2028',
@@ -138,7 +135,7 @@ const REAL_BONDS: Bond[] = [
     available: true,
     riskLevel: 'Low'
   },
-  // 4. REC Green Bond (Sustainable) - Medium Volatility, Upward
+  // 4. REC Green Bond
   {
     id: 'rec-green-27',
     ticker: 'GREEN 2027',
@@ -164,7 +161,7 @@ const REAL_BONDS: Bond[] = [
     available: true,
     riskLevel: 'Low'
   },
-  // 5. NHAI (High Safety) - Very Low Volatility, Flat
+  // 5. NHAI
   {
     id: 'nhai-2030',
     ticker: 'NHAI 54EC',
@@ -190,7 +187,7 @@ const REAL_BONDS: Bond[] = [
     available: true,
     riskLevel: 'Low'
   },
-  // 6. Maharashtra SDL (State Gov) - Medium Volatility, Slight Up
+  // 6. Maharashtra SDL
   {
     id: 'mh-sdl-32',
     ticker: 'MH SDL 32',
@@ -216,7 +213,7 @@ const REAL_BONDS: Bond[] = [
     available: true,
     riskLevel: 'Low'
   },
-  // 7. 7.18% GS 2037 (Long Term) - High Volatility, Downward
+  // 7. GOI 2037 (Sold Out)
   {
     id: 'goi-2037',
     ticker: 'GOI 2037',
@@ -259,6 +256,7 @@ export const BondMarketplace = () => {
   return (
     <section id="marketplace" ref={containerRef} style={{ height: `${100 + bondCount * 80}vh` }}>
       <div className="sticky top-0 h-screen flex flex-col bg-background">
+        {/* Header */}
         <div className="pt-20 px-6 mb-4">
           <div className="max-w-7xl mx-auto">
             <motion.div
@@ -277,6 +275,7 @@ export const BondMarketplace = () => {
           </div>
         </div>
 
+        {/* Bond Cards - Stacked Scroll Effect */}
         <div className="flex-1 relative w-full max-w-5xl mx-auto px-6">
           {REAL_BONDS.map((bond, index) => (
             <BondSlide
@@ -290,6 +289,7 @@ export const BondMarketplace = () => {
           ))}
         </div>
 
+        {/* Scroll Indicator */}
         <div className="pb-6 flex flex-col items-center gap-2 z-10">
           <div className="flex gap-2">
              {REAL_BONDS.map((_, i) => (
@@ -307,7 +307,7 @@ export const BondMarketplace = () => {
         </div>
       </div>
 
-      {/* @ts-ignore - Types are compatible via interface intersection */}
+      {/* @ts-ignore - Suppress intersection types warning */}
       <PurchaseModal 
         bond={selectedBond} 
         isOpen={!!selectedBond} 
@@ -317,7 +317,7 @@ export const BondMarketplace = () => {
   );
 };
 
-// --- Sub Components ---
+// --- Component: Individual Bond Slide ---
 interface BondSlideProps {
   bond: Bond;
   index: number;
@@ -331,32 +331,50 @@ const BondSlide = ({ bond, index, totalBonds, scrollYProgress, onBuy }: BondSlid
   const start = index * segmentSize;
   const end = (index + 1) * segmentSize;
 
-  const opacity = useTransform(scrollYProgress, [start, start + 0.1, end - 0.1, end], [0, 1, 1, 0]);
-  const y = useTransform(scrollYProgress, [start, start + 0.1, end - 0.1, end], [50, 0, 0, -50]);
-  const scale = useTransform(scrollYProgress, [start, start + 0.1, end - 0.1, end], [0.9, 1, 1, 0.9]);
+  const opacity = useTransform(scrollYProgress, 
+    [start, start + 0.1, end - 0.1, end], 
+    [0, 1, 1, 0]
+  );
+  
+  const y = useTransform(scrollYProgress, 
+    [start, start + 0.1, end - 0.1, end], 
+    [50, 0, 0, -50]
+  );
+
+  const scale = useTransform(scrollYProgress, 
+    [start, start + 0.1, end - 0.1, end], 
+    [0.9, 1, 1, 0.9]
+  );
+
+  // --- CRITICAL FIX: Disable pointer events when card is not fully visible ---
+  // This allows clicks to pass through to the cards underneath!
+  const pointerEvents = useTransform(opacity, (value) => value > 0.5 ? 'auto' : 'none');
 
   return (
     <motion.div
-      className="absolute inset-0 flex items-center justify-center pointer-events-none"
-      style={{ opacity, y, scale }}
+      className="absolute inset-0 flex items-center justify-center"
+      style={{ opacity, y, scale, pointerEvents }} 
     >
-      <div className="pointer-events-auto w-full">
+      <div className="w-full">
          <DetailedBondCard bond={bond} onBuy={() => onBuy(bond)} />
       </div>
     </motion.div>
   );
 };
 
+// --- Component: The "Terminal" Style Card ---
 const DetailedBondCard = ({ bond, onBuy }: { bond: Bond; onBuy: () => void }) => {
   const isPositive = bond.priceChange24h >= 0;
 
   return (
     <div className="relative bg-[#0A0A0A] border border-white/10 rounded-lg p-6 max-w-3xl mx-auto shadow-2xl overflow-hidden group">
+      {/* Corner Brackets */}
       <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary/50" />
       <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-primary/50" />
       <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-primary/50" />
       <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-primary/50" />
 
+      {/* Live Indicator */}
       <div className="flex items-center gap-2 mb-6">
         <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(198,255,0,0.5)]" />
         <span className="text-[10px] font-mono uppercase tracking-widest text-primary/80">
@@ -365,6 +383,8 @@ const DetailedBondCard = ({ bond, onBuy }: { bond: Bond; onBuy: () => void }) =>
       </div>
 
       <div className="flex flex-col md:flex-row gap-8">
+        
+        {/* LEFT: Info Section */}
         <div className="flex-1 space-y-6">
           <div>
             <h3 className="text-3xl font-bold text-white tracking-tight font-mono">{bond.ticker}</h3>
@@ -407,13 +427,23 @@ const DetailedBondCard = ({ bond, onBuy }: { bond: Bond; onBuy: () => void }) =>
           </div>
 
           <button 
-            onClick={onBuy}
-            className="w-full bg-primary hover:bg-primary/90 text-black font-bold py-3 px-4 rounded transition-all transform hover:scale-[1.02] active:scale-[0.98] uppercase tracking-wider text-sm"
+            onClick={() => {
+              if (bond.status !== 'SOLD OUT' && bond.availability > 0) {
+                onBuy();
+              }
+            }}
+            disabled={bond.status === 'SOLD OUT' || bond.availability === 0}
+            className={`w-full font-bold py-3 px-4 rounded transition-all transform uppercase tracking-wider text-sm ${
+              bond.status === 'SOLD OUT' || bond.availability === 0
+                ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
+                : 'bg-primary hover:bg-primary/90 text-black hover:scale-[1.02] active:scale-[0.98]'
+            }`}
           >
-            Buy Now
+            {bond.status === 'SOLD OUT' ? 'Sold Out' : 'Buy Now'}
           </button>
         </div>
 
+        {/* RIGHT: Chart Section */}
         <div className="w-full md:w-64 bg-white/5 rounded-lg border border-white/5 p-4 flex flex-col justify-between">
           <div className="flex justify-between items-start mb-2">
             <span className="text-[10px] text-muted-foreground uppercase font-mono">24H Yield</span>
@@ -429,7 +459,7 @@ const DetailedBondCard = ({ bond, onBuy }: { bond: Bond; onBuy: () => void }) =>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={bond.priceHistory}>
                 <Line 
-                  type="monotone" // This creates the smooth curve
+                  type="monotone" 
                   dataKey="value" 
                   stroke={isPositive ? "#C6FF00" : "#EF4444"} 
                   strokeWidth={2} 
@@ -440,6 +470,7 @@ const DetailedBondCard = ({ bond, onBuy }: { bond: Bond; onBuy: () => void }) =>
             </ResponsiveContainer>
           </div>
           
+          {/* Faux Chart Gradient Overlay */}
           <div className={`h-8 w-full mt-[-32px] bg-gradient-to-t ${isPositive ? 'from-green-500/10' : 'from-red-500/10'} to-transparent`} />
         </div>
 
