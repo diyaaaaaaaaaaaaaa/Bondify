@@ -26,9 +26,10 @@ interface Web3ContextType {
   isCorrectNetwork: boolean;
   connectWallet: () => Promise<void>;
   switchToFuji: () => Promise<void>;
-  handleMint: (amount: string) => Promise<void>;
+  handleMint: (amount: string, isSIP?: boolean) => Promise<void>;
   handleClaim: () => Promise<void>;
-  redeemTokens: (amount: string, bondId: string, bondName: string) => Promise<boolean>; // Updated signature
+  compoundYield: (bondId: string, amount: number) => Promise<void>;
+  redeemTokens: (amount: string, bondId: string, bondName: string) => Promise<boolean>;
   refreshBalances: () => Promise<void>;
   setTransactionStatus: (status: string) => void;
   transactionStatus: string;
@@ -47,7 +48,6 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isConnected, setIsConnected] = useState(false);
   const [isVerified, setIsVerified] = useState(true);
   
-  // Initialize from LocalStorage or Default
   const [bondBalance, setBondBalance] = useState(() => localStorage.getItem('sim_bondBalance') || '0');
   const [currencyBalance, setCurrencyBalance] = useState(() => localStorage.getItem('sim_currencyBalance') || '50000.00');
   
@@ -56,11 +56,64 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isCorrectNetwork, setIsCorrectNetwork] = useState(false);
   const [transactionStatus, setTransactionStatus] = useState('');
 
-  // Persist balances whenever they change
+  // Persist balances
   useEffect(() => {
     localStorage.setItem('sim_bondBalance', bondBalance);
     localStorage.setItem('sim_currencyBalance', currencyBalance);
   }, [bondBalance, currencyBalance]);
+
+  // --- BACKGROUND SIP WORKER (2-Minute Simulation) ---
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const sipInterval = setInterval(() => {
+      const stored = localStorage.getItem('bond_holdings');
+      if (!stored) return;
+
+      let history = JSON.parse(stored);
+      let updated = false;
+      const now = Date.now();
+      const newEntries: any[] = [];
+
+      history.forEach((bond: any) => {
+        // If bond has an active SIP and the timer (120,000ms) has passed
+        if (bond.isSIP && bond.sipNextDate && now >= bond.sipNextDate) {
+          const sipAmountRupees = 100; 
+          const currentBalance = parseFloat(currencyBalance);
+
+          if (currentBalance >= sipAmountRupees) {
+            // 1. Create the Auto-Purchase entry
+            const autoPurchase = {
+              id: bond.id,
+              name: `${bond.name} (SIP)`,
+              amount: 1, // ₹100 = 1 Token
+              timestamp: now,
+              isSIP: true,
+              sipNextDate: now + 120000 // Queue next one for 2 mins later
+            };
+
+            // 2. Disable the timer on the previous record to avoid double-processing
+            bond.sipNextDate = null; 
+            
+            newEntries.push(autoPurchase);
+            
+            // 3. Update Global State
+            setCurrencyBalance(prev => (parseFloat(prev) - sipAmountRupees).toFixed(2));
+            setBondBalance(prev => (parseFloat(prev) + 1).toString());
+            
+            updated = true;
+            console.log(`[SIP Worker] Auto-investment executed for ${bond.name}`);
+          }
+        }
+      });
+
+      if (updated) {
+        localStorage.setItem('bond_holdings', JSON.stringify([...history, ...newEntries]));
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(sipInterval);
+  }, [isConnected, currencyBalance, bondBalance]);
 
   const checkMetaMask = () => typeof window.ethereum !== 'undefined';
 
@@ -107,7 +160,6 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setIsConnected(true);
         const correct = await checkNetwork();
         if (!correct) await switchToFuji();
-        // Just use local state for simulation, don't overwrite with 0 from chain
         setTransactionStatus('');
       }
     } catch (e) { console.error(e); setTransactionStatus(''); }
@@ -122,17 +174,8 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await new Promise(r => setTimeout(r, 1000));
       setTransactionStatus('SUCCESS!');
       
-      // Update persistent state
-      setBondBalance((prev) => {
-        const current = parseFloat(prev);
-        const added = parseFloat(amount) / 100; 
-        return (current + added).toString();
-      });
-
-      setCurrencyBalance((prev) => {
-        const current = parseFloat(prev);
-        return (current - parseFloat(amount)).toFixed(2);
-      });
+      setBondBalance((prev) => (parseFloat(prev) + parseFloat(amount) / 100).toString());
+      setCurrencyBalance((prev) => (parseFloat(prev) - parseFloat(amount)).toFixed(2));
 
     } catch (error: any) {
       console.error(error);
@@ -149,62 +192,66 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTimeout(() => setTransactionStatus(''), 2000);
   };
 
-  // 1. Ensure the interface at the top includes these 3 arguments:
-// redeemTokens: (amount: string, bondId: string, bondName: string) => Promise<boolean>;
+  // --- Feature 3: Yield Compounding ---
+  const compoundYield = async (bondId: string, amount: number) => {
+    setTransactionStatus('COMPOUNDING...');
+    try {
+      await new Promise(r => setTimeout(r, 1500));
+      
+      const newTokens = amount / 100; // ₹100 = 1 Token
+      setBondBalance(prev => (parseFloat(prev) + newTokens).toString());
 
-// 2. Replace the function inside the Web3Provider component:
-const redeemTokens = async (amount: string, bondId: string, bondName: string) => {
-  setTransactionStatus('REDEEMING...');
-  try {
-    // Artificial delay to mimic blockchain speed
-    await new Promise(r => setTimeout(r, 2000));
-
-    const redeemedTokens = parseFloat(amount);
-    const refundRupees = redeemedTokens * 100; // 1 token = ₹100
-
-    // Update Global Token Balance
-    setBondBalance((prev) => {
-      const newVal = Math.max(0, parseFloat(prev) - redeemedTokens).toString();
-      localStorage.setItem('sim_bondBalance', newVal);
-      return newVal;
-    });
-
-    // Update Digital Rupee (eINR) Balance
-    setCurrencyBalance((prev) => {
-      const newVal = (parseFloat(prev) + refundRupees).toFixed(2);
-      localStorage.setItem('sim_currencyBalance', newVal);
-      return newVal;
-    });
-
-    // Log the transaction to history (LocalStorage)
-    const stored = localStorage.getItem('bond_holdings');
-    const history = stored ? JSON.parse(stored) : [];
-    
-    const redeemTx = {
-      id: bondId,
-      name: bondName,
-      amount: -redeemedTokens, // Negative value signifies redemption
-      timestamp: Date.now(),
-      type: 'redeem'
-    };
-    
-    history.push(redeemTx);
-    localStorage.setItem('bond_holdings', JSON.stringify(history));
-
-    setTransactionStatus('SUCCESS!');
+      const stored = localStorage.getItem('bond_holdings');
+      const history = stored ? JSON.parse(stored) : [];
+      
+      history.push({
+        id: bondId,
+        name: "Yield Reinvestment",
+        amount: newTokens,
+        timestamp: Date.now(),
+        type: 'compound'
+      });
+      
+      localStorage.setItem('bond_holdings', JSON.stringify(history));
+      setTransactionStatus('SUCCESS!');
+    } catch (e) {
+      setTransactionStatus('ERROR');
+    }
     setTimeout(() => setTransactionStatus(''), 2000);
-    return true;
-  } catch (e) {
-    console.error("Redeem failed:", e);
-    setTransactionStatus('ERROR');
-    setTimeout(() => setTransactionStatus(''), 2000);
-    return false;
-  }
-};
-
-  const refreshBalances = async () => { 
-    // No-op in simulation mode to prevent overwriting with 0
   };
+
+  const redeemTokens = async (amount: string, bondId: string, bondName: string) => {
+    setTransactionStatus('REDEEMING...');
+    try {
+      await new Promise(r => setTimeout(r, 2000));
+      const redeemedTokens = parseFloat(amount);
+      const refundRupees = redeemedTokens * 100;
+
+      setBondBalance((prev) => Math.max(0, parseFloat(prev) - redeemedTokens).toString());
+      setCurrencyBalance((prev) => (parseFloat(prev) + refundRupees).toFixed(2));
+
+      const stored = localStorage.getItem('bond_holdings');
+      const history = stored ? JSON.parse(stored) : [];
+      history.push({
+        id: bondId,
+        name: bondName,
+        amount: -redeemedTokens,
+        timestamp: Date.now(),
+        type: 'redeem'
+      });
+      localStorage.setItem('bond_holdings', JSON.stringify(history));
+
+      setTransactionStatus('SUCCESS!');
+      setTimeout(() => setTransactionStatus(''), 2000);
+      return true;
+    } catch (e) {
+      setTransactionStatus('ERROR');
+      setTimeout(() => setTransactionStatus(''), 2000);
+      return false;
+    }
+  };
+
+  const refreshBalances = async () => {};
 
   useEffect(() => {
     if (window.ethereum) {
@@ -219,7 +266,7 @@ const redeemTokens = async (amount: string, bondId: string, bondName: string) =>
     <Web3Context.Provider value={{
       account, isConnected, isVerified, bondBalance, currencyBalance,
       claimableYield, yieldRate, isCorrectNetwork,
-      connectWallet, switchToFuji, handleMint, handleClaim, redeemTokens,
+      connectWallet, switchToFuji, handleMint, handleClaim, compoundYield, redeemTokens,
       refreshBalances, transactionStatus, setTransactionStatus
     }}>
       {children}

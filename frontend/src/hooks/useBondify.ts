@@ -11,6 +11,7 @@ export const useBondify = () => {
     yieldRate,
     handleMint,
     handleClaim,
+    compoundYield, // <--- Added: Pulling from Context
     redeemTokens,
     refreshBalances,
     transactionStatus,
@@ -34,6 +35,7 @@ export const useBondify = () => {
     connectWallet,
     mintBond: handleMint,
     claimYield: handleClaim,
+    compoundYield, // <--- Added: Exposing to components
     redeemTokens,
     refresh: refreshBalances
   };
