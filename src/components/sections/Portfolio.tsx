@@ -105,7 +105,7 @@ export const Portfolio = () => {
 
   return (
     <>
-      <section id="portfolio" className="min-h-screen py-24 px-6 bg-card/30">
+      <section id="portfolio" className="min-h-screen py-24 px-6 bg-card/30 scroll-snap-align-start scroll-snap-stop">
         <div className="max-w-7xl mx-auto">
           <motion.div className="mb-12" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <span className="text-xs text-primary uppercase tracking-widest font-mono">{'>'} Your Assets</span>

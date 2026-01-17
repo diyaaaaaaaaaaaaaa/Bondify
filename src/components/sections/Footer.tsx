@@ -15,8 +15,8 @@ export const Footer = () => (
 
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold">B</span>
+          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
+            <span className="text-primary-foreground font-bold rounded-xl"><img src="../../../public/Bondify_Logo.png" className='rounded-xl'/></span>
           </div>
           <span className="font-bold uppercase">Bondify</span>
         </div>

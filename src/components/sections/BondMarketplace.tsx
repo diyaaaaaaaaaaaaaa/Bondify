@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { PurchaseModal } from '@/components/ui/PurchaseModal';
 import { useBondify } from '@/hooks/useBondify';
-import { ChevronDown, TrendingUp, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, TrendingUp, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts';
 
 // --- HYBRID INTERFACE ---
@@ -244,66 +244,95 @@ const REAL_BONDS: Bond[] = [
 export const BondMarketplace = () => {
   const { isConnected } = useBondify(); 
   const [selectedBond, setSelectedBond] = useState<Bond | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ['start start', 'end end'],
-  });
+  const handlePrevious = () => {
+    setCurrentIndex((prev) => (prev === 0 ? REAL_BONDS.length - 1 : prev - 1));
+  };
 
-  const bondCount = REAL_BONDS.length;
+  const handleNext = () => {
+    setCurrentIndex((prev) => (prev === REAL_BONDS.length - 1 ? 0 : prev + 1));
+  };
+
+  const currentBond = REAL_BONDS[currentIndex];
 
   return (
-    <section id="marketplace" ref={containerRef} style={{ height: `${100 + bondCount * 80}vh` }}>
-      <div className="sticky top-0 h-screen flex flex-col bg-background">
+    <section id="marketplace" className="min-h-screen py-24 px-6 bg-background scroll-snap-align-start">
+      <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="pt-20 px-6 mb-4">
-          <div className="max-w-7xl mx-auto">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-            >
-              <span className="text-xs text-primary uppercase tracking-widest font-mono">
-                {'>'} Invest Now
-              </span>
-              <h2 className="heading-brutal text-4xl md:text-5xl mt-2 font-bold">BOND MARKETPLACE</h2>
-              <p className="text-muted-foreground mt-2 max-w-xl">
-                Browse and invest in tokenized government securities. All bonds are backed by real-world assets.
-              </p>
-            </motion.div>
-          </div>
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mb-12"
+        >
+          <span className="text-xs text-primary uppercase tracking-widest font-mono">
+            {'>'} Invest Now
+          </span>
+          <h2 className="heading-brutal text-4xl md:text-5xl mt-2 font-bold">BOND MARKETPLACE</h2>
+          <p className="text-muted-foreground mt-2 max-w-xl">
+            Browse and invest in tokenized government securities. All bonds are backed by real-world assets.
+          </p>
+        </motion.div>
 
-        {/* Bond Cards - Stacked Scroll Effect */}
-        <div className="flex-1 relative w-full max-w-5xl mx-auto px-6">
-          {REAL_BONDS.map((bond, index) => (
-            <BondSlide
-              key={bond.id}
-              bond={bond}
-              index={index}
-              totalBonds={bondCount}
-              scrollYProgress={scrollYProgress}
-              onBuy={setSelectedBond}
-            />
-          ))}
-        </div>
-
-        {/* Scroll Indicator */}
-        <div className="pb-6 flex flex-col items-center gap-2 z-10">
-          <div className="flex gap-2">
-             {REAL_BONDS.map((_, i) => (
-                <div key={i} className={`w-2 h-2 rounded-full ${i === 0 ? 'bg-primary' : 'bg-primary/20'}`} />
-             ))}
-          </div>
+        {/* Carousel Container */}
+        <div className="flex flex-col gap-8">
+          {/* Card Display */}
           <motion.div
-            className="flex items-center gap-2 text-muted-foreground text-sm"
-            animate={{ y: [0, 5, 0] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
+            key={currentBond.id}
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -50 }}
+            transition={{ duration: 0.3 }}
+            className="w-full"
           >
-            <span>Scroll for more</span>
-            <ChevronDown className="w-4 h-4" />
+            <DetailedBondCard bond={currentBond} onBuy={() => setSelectedBond(currentBond)} />
           </motion.div>
+
+          {/* Navigation Controls */}
+          <div className="flex flex-col items-center gap-6 mt-8">
+            {/* Navigation Buttons */}
+            <div className="flex gap-4 items-center justify-center">
+              <motion.button
+                onClick={handlePrevious}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="p-3 rounded-lg border border-primary/30 hover:border-primary hover:bg-primary/10 transition-all duration-200"
+              >
+                <ChevronLeft className="w-6 h-6 text-primary" />
+              </motion.button>
+
+              <span className="text-muted-foreground font-mono text-sm px-4">
+                {String(currentIndex + 1).padStart(2, '0')} / {String(REAL_BONDS.length).padStart(2, '0')}
+              </span>
+
+              <motion.button
+                onClick={handleNext}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="p-3 rounded-lg border border-primary/30 hover:border-primary hover:bg-primary/10 transition-all duration-200"
+              >
+                <ChevronRight className="w-6 h-6 text-primary" />
+              </motion.button>
+            </div>
+
+            {/* Dot Indicators */}
+            <div className="flex gap-2 flex-wrap justify-center max-w-md">
+              {REAL_BONDS.map((_, index) => (
+                <motion.button
+                  key={index}
+                  onClick={() => setCurrentIndex(index)}
+                  whileHover={{ scale: 1.2 }}
+                  whileTap={{ scale: 0.9 }}
+                  className={`transition-all duration-300 rounded-full ${
+                    index === currentIndex
+                      ? 'w-3 h-3 bg-primary shadow-[0_0_12px_rgba(198,255,0,0.6)]'
+                      : 'w-2 h-2 bg-primary/30 hover:bg-primary/50'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -317,50 +346,6 @@ export const BondMarketplace = () => {
   );
 };
 
-// --- Component: Individual Bond Slide ---
-interface BondSlideProps {
-  bond: Bond;
-  index: number;
-  totalBonds: number;
-  scrollYProgress: any;
-  onBuy: (bond: Bond) => void;
-}
-
-const BondSlide = ({ bond, index, totalBonds, scrollYProgress, onBuy }: BondSlideProps) => {
-  const segmentSize = 1 / totalBonds;
-  const start = index * segmentSize;
-  const end = (index + 1) * segmentSize;
-
-  const opacity = useTransform(scrollYProgress, 
-    [start, start + 0.1, end - 0.1, end], 
-    [0, 1, 1, 0]
-  );
-  
-  const y = useTransform(scrollYProgress, 
-    [start, start + 0.1, end - 0.1, end], 
-    [50, 0, 0, -50]
-  );
-
-  const scale = useTransform(scrollYProgress, 
-    [start, start + 0.1, end - 0.1, end], 
-    [0.9, 1, 1, 0.9]
-  );
-
-  // --- CRITICAL FIX: Disable pointer events when card is not fully visible ---
-  // This allows clicks to pass through to the cards underneath!
-  const pointerEvents = useTransform(opacity, (value) => value > 0.5 ? 'auto' : 'none');
-
-  return (
-    <motion.div
-      className="absolute inset-0 flex items-center justify-center"
-      style={{ opacity, y, scale, pointerEvents }} 
-    >
-      <div className="w-full">
-         <DetailedBondCard bond={bond} onBuy={() => onBuy(bond)} />
-      </div>
-    </motion.div>
-  );
-};
 
 // --- Component: The "Terminal" Style Card ---
 const DetailedBondCard = ({ bond, onBuy }: { bond: Bond; onBuy: () => void }) => {

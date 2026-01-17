@@ -18,7 +18,7 @@ export const TransactionHistory = () => {
   }, [isConnected, bondBalance]);
 
   return (
-    <section id="history" className="min-h-screen py-24 px-6 bg-card/30">
+    <section id="history" className="min-h-screen py-24 px-6 bg-card/30 scroll-snap-align-start scroll-snap-stop">
       <div className="max-w-4xl mx-auto">
         <motion.div className="mb-12" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
           <h2 className="heading-brutal text-4xl md:text-5xl mt-2">Transaction History</h2>

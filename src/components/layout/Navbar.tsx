@@ -31,8 +31,8 @@ export const Navbar = () => {
           className="flex items-center gap-2"
           whileHover={{ scale: 1.02 }}
         >
-          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-xl">B</span>
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+            <span className="text-primary-foreground font-bold text-xl rounded-xl"><img src="/public/Bondify_Logo.png" className='rounded-xl'/></span>
           </div>
           <span className="text-xl font-bold uppercase tracking-tight">
             Bond<span className="text-primary">ify</span>

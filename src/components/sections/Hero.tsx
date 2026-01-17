@@ -27,9 +27,9 @@ export const Hero = () => {
   ];
 
   return (
-    <div ref={containerRef} className="h-[120vh] relative">
+    <div ref={containerRef} className="h-[120vh] relative scroll-snap-align-start">
       <motion.section
-        className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden"
+        className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden scroll-snap-stop"
         style={{ scale, opacity, borderRadius }}
       >
         {/* Background Paths Animation */}

@@ -55,7 +55,7 @@ export const Redeem = () => {
   }, [isConnected, selectedHolding, bondBalance]); // 2. ADDED: bondBalance here triggers the refresh
 
   return (
-    <section id="redeem" className="min-h-screen py-24 px-6">
+    <section id="redeem" className="min-h-screen py-24 px-6 scroll-snap-align-start scroll-snap-stop">
       <div className="max-w-4xl mx-auto">
         <motion.div className="mb-12" initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
           <span className="text-xs text-accent uppercase tracking-widest font-mono">{'>'} Cash Out</span>
