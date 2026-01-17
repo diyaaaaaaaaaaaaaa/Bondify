@@ -1,26 +1,26 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { BrowserProvider, Contract, formatUnits, parseUnits } from 'ethers';
 
-// Contract addresses on Avalanche Fuji
-const CONTRACTS = {
-  identityRegistry: '0x24a20E821A5d8C8aC4C676743c253D765c53bCB2',
-  bondToken: '0xBf5b6E65a930589159b78F34B6Cdc820Ff809BdF',
-  usdcToken: '0x5425890298aed601595a70AB815c96711a31Bc65',
-  yieldDistributor: '0xdC67f40c28A73762e0DffB582254183EfF0f8540',
-};
+// --- CONFIGURATION ---
+const FUJI_CHAIN_ID = '0xa869'; // 43113
 
-const FUJI_CHAIN_ID = '0xa869';
+// 👇 YOUR DEPLOYED ADDRESSES 👇
+const EINR_ADDRESS = '0xA8309342b3918432eB9e4CF7ed5F274DDcf72930'; 
+const TREASURY_ADDRESS = '0xa3F0c249358b5060B9Be971645e57E487E36601a'; 
 
-const BOND_TOKEN_ABI = ["function balanceOf(address) view returns (uint256)", "function mint(address to, uint256 amount)", "function transfer(address to, uint256 value) returns (bool)"];
-const USDC_ABI = ["function balanceOf(address) view returns (uint256)"];
-const YIELD_ABI = ["function claimYield()", "function calculateClaimableYield(address) view returns (uint256)", "function yieldRateBps() view returns (uint256)"];
+const EINR_ABI = [
+  "function balanceOf(address) view returns (uint256)",
+  "function transfer(address to, uint256 amount) returns (bool)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function decimals() view returns (uint8)"
+];
 
 interface Web3ContextType {
   account: string | null;
   isConnected: boolean;
   isVerified: boolean;
   bondBalance: string;
-  currencyBalance: string;
+  currencyBalance: string; // Real eINR
   claimableYield: string;
   yieldRate: string;
   isCorrectNetwork: boolean;
@@ -30,7 +30,7 @@ interface Web3ContextType {
   handleClaim: () => Promise<void>;
   compoundYield: (bondId: string, amount: number) => Promise<void>;
   redeemTokens: (amount: string, bondId: string, bondName: string) => Promise<boolean>;
-  cancelSIP: (bondId: string) => Promise<void>; // <--- NEW: Function to stop SIP
+  cancelSIP: (bondId: string) => Promise<void>;
   refreshBalances: () => Promise<void>;
   setTransactionStatus: (status: string) => void;
   transactionStatus: string;
@@ -49,21 +49,47 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isConnected, setIsConnected] = useState(false);
   const [isVerified, setIsVerified] = useState(true);
   
+  // Bond Balance (Off-Chain Asset)
   const [bondBalance, setBondBalance] = useState(() => localStorage.getItem('sim_bondBalance') || '0');
-  const [currencyBalance, setCurrencyBalance] = useState(() => localStorage.getItem('sim_currencyBalance') || '50000.00');
+  
+  // Currency Balance (Real On-Chain eINR)
+  const [currencyBalance, setCurrencyBalance] = useState('0.00');
   
   const [claimableYield, setClaimableYield] = useState('0');
   const [yieldRate, setYieldRate] = useState('7.25');
   const [isCorrectNetwork, setIsCorrectNetwork] = useState(false);
   const [transactionStatus, setTransactionStatus] = useState('');
 
-  // Persist balances
+  // Persist Bond Balance
   useEffect(() => {
     localStorage.setItem('sim_bondBalance', bondBalance);
-    localStorage.setItem('sim_currencyBalance', currencyBalance);
-  }, [bondBalance, currencyBalance]);
+  }, [bondBalance]);
 
-  // --- BACKGROUND SIP WORKER (2-Minute Simulation) ---
+  // --- HELPER: READ REAL BALANCE ---
+  const refreshBalances = async () => {
+    if (!account || !window.ethereum) return;
+    try {
+        const provider = new BrowserProvider(window.ethereum);
+        const contract = new Contract(EINR_ADDRESS, EINR_ABI, provider);
+        
+        const rawBalance = await contract.balanceOf(account);
+        const decimals = await contract.decimals(); 
+        
+        // Format to readable string (e.g. "500.00")
+        const formatted = parseFloat(formatUnits(rawBalance, decimals)).toFixed(2);
+        setCurrencyBalance(formatted);
+        console.log("Updated Real Balance:", formatted);
+    } catch (error) {
+        console.error("Failed to fetch eINR balance:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (isConnected && account) refreshBalances();
+  }, [isConnected, account]);
+
+
+  // --- BACKGROUND SIP WORKER (Hybrid Mode) ---
   useEffect(() => {
     if (!isConnected) return;
 
@@ -77,38 +103,32 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newEntries: any[] = [];
 
       history.forEach((bond: any) => {
-        // If bond has an active SIP and the timer (120,000ms) has passed
         if (bond.isSIP && bond.sipNextDate && now >= bond.sipNextDate) {
-          
-          // UPDATED: Use the specific amount chosen by user, or default to 100
           const sipAmountRupees = bond.sipAmount || 100; 
+          
+          // NOTE: Checking UI balance for SIP check
           const currentBalance = parseFloat(currencyBalance);
 
           if (currentBalance >= sipAmountRupees) {
-            const tokensToBuy = sipAmountRupees / 100; // Calculate tokens (e.g. 500rs = 5 tokens)
+            const tokensToBuy = sipAmountRupees / 100; 
 
-            // 1. Create the Auto-Purchase entry
             const autoPurchase = {
               id: bond.id,
               name: `${bond.name} (SIP)`,
               amount: tokensToBuy,
               timestamp: now,
               isSIP: true,
-              sipAmount: sipAmountRupees, // Pass the custom amount forward
-              sipNextDate: now + 120000 // Queue next one for 2 mins later
+              sipAmount: sipAmountRupees,
+              sipNextDate: now + 120000
             };
 
-            // 2. Disable the timer on the previous record to avoid double-processing
             bond.sipNextDate = null; 
-            
             newEntries.push(autoPurchase);
             
-            // 3. Update Global State
+            // Optimistic UI Update
             setCurrencyBalance(prev => (parseFloat(prev) - sipAmountRupees).toFixed(2));
             setBondBalance(prev => (parseFloat(prev) + tokensToBuy).toString());
-            
             updated = true;
-            console.log(`[SIP Worker] Auto-investment of ₹${sipAmountRupees} executed for ${bond.name}`);
           }
         }
       });
@@ -116,7 +136,7 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (updated) {
         localStorage.setItem('bond_holdings', JSON.stringify([...history, ...newEntries]));
       }
-    }, 5000); // Check every 5 seconds
+    }, 5000); 
 
     return () => clearInterval(sipInterval);
   }, [isConnected, currencyBalance, bondBalance]);
@@ -160,32 +180,64 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!checkMetaMask()) { alert('Install MetaMask'); return; }
     try {
       setTransactionStatus('CONNECTING...');
+      
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      
       if (accounts.length > 0) {
         setAccount(accounts[0]);
         setIsConnected(true);
         const correct = await checkNetwork();
         if (!correct) await switchToFuji();
         setTransactionStatus('');
+        
+        // Fetch Real Balance Immediately
+        setTimeout(refreshBalances, 500);
       }
     } catch (e) { console.error(e); setTransactionStatus(''); }
   };
 
+  // --- CORE FUNCTION: REAL BUY (Hybrid) ---
+ // --- CORE FUNCTION: REAL BUY (Hybrid) ---
   const handleMint = async (amount: string) => {
     if (!isConnected) { alert('Connect Wallet'); return; }
+    
     try {
-      setTransactionStatus('APPROVING...');
-      await new Promise(r => setTimeout(r, 800));
-      setTransactionStatus('MINTING...');
-      await new Promise(r => setTimeout(r, 1000));
-      setTransactionStatus('SUCCESS!');
+      setTransactionStatus('INITIATING TRANSFER...');
+
+      const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new Contract(EINR_ADDRESS, EINR_ABI, signer);
+
+      // 1. TRIGGER METAMASK
+      const tx = await contract.transfer(TREASURY_ADDRESS, parseUnits(amount, 18));
       
+      setTransactionStatus('PROCESSING ON-CHAIN...');
+      await tx.wait(); // Wait for confirmation
+
+      setTransactionStatus('MINTING BOND...');
+      await new Promise(r => setTimeout(r, 1000)); 
+      
+      // 2. OPTIMISTIC UPDATE (The Fix)
+      // Manually update the UI state immediately, don't wait for the slow RPC
+      setCurrencyBalance((prev) => {
+          const newVal = parseFloat(prev) - parseFloat(amount);
+          return newVal.toFixed(2);
+      });
+
       setBondBalance((prev) => (parseFloat(prev) + parseFloat(amount) / 100).toString());
-      setCurrencyBalance((prev) => (parseFloat(prev) - parseFloat(amount)).toFixed(2));
+      
+      setTransactionStatus('SUCCESS!');
+
+      // 3. Background Refresh (Double Check)
+      // We still ask the blockchain for the truth, but we do it after a delay
+      // so the RPC has time to index the block.
+      setTimeout(() => {
+          refreshBalances();
+      }, 5000); 
 
     } catch (error: any) {
       console.error(error);
-      setTransactionStatus('ERROR');
+      setTransactionStatus('PAYMENT FAILED');
     }
     setTimeout(() => setTransactionStatus(''), 3000);
   };
@@ -198,13 +250,11 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTimeout(() => setTransactionStatus(''), 2000);
   };
 
-  // --- Feature 3: Yield Compounding ---
   const compoundYield = async (bondId: string, amount: number) => {
     setTransactionStatus('COMPOUNDING...');
     try {
       await new Promise(r => setTimeout(r, 1500));
-      
-      const newTokens = amount / 100; // ₹100 = 1 Token
+      const newTokens = amount / 100;
       setBondBalance(prev => (parseFloat(prev) + newTokens).toString());
 
       const stored = localStorage.getItem('bond_holdings');
@@ -257,7 +307,6 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // --- NEW: Cancel SIP Function ---
   const cancelSIP = async (bondId: string) => {
     setTransactionStatus('CANCELLING SIP...');
     try {
@@ -266,21 +315,15 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const stored = localStorage.getItem('bond_holdings');
         if (stored) {
             const history = JSON.parse(stored);
-            
-            // Iterate through history and disable SIP for all matching bond entries
             const updatedHistory = history.map((h: any) => {
                 if (h.id === bondId) {
                     return { ...h, isSIP: false, sipNextDate: null };
                 }
                 return h;
             });
-            
             localStorage.setItem('bond_holdings', JSON.stringify(updatedHistory));
-            
-            // Force a re-render by touching state (cleanest way in simulation)
             setBondBalance(prev => prev); 
         }
-        
         setTransactionStatus('SIP STOPPED');
     } catch (e) {
         console.error(e);
@@ -289,13 +332,16 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setTimeout(() => setTransactionStatus(''), 2000);
   };
 
-  const refreshBalances = async () => {};
-
   useEffect(() => {
     if (window.ethereum) {
       window.ethereum.on('accountsChanged', (accs: string[]) => {
-        if (accs.length) setAccount(accs[0]);
-        else setIsConnected(false);
+        if (accs.length) {
+            setAccount(accs[0]);
+            refreshBalances();
+        } else {
+            setIsConnected(false);
+            setAccount(null);
+        }
       });
     }
   }, []);
@@ -305,7 +351,7 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       account, isConnected, isVerified, bondBalance, currencyBalance,
       claimableYield, yieldRate, isCorrectNetwork,
       connectWallet, switchToFuji, handleMint, handleClaim, 
-      compoundYield, redeemTokens, cancelSIP, // Exported here
+      compoundYield, redeemTokens, cancelSIP,
       refreshBalances, transactionStatus, setTransactionStatus
     }}>
       {children}
