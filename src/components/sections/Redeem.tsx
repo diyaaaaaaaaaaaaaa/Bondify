@@ -14,18 +14,20 @@ export interface HoldingBond {
 }
 
 export const Redeem = () => {
-  const { isConnected } = useBondify();
+  // 1. ADDED: bondBalance to destructuring
+  const { isConnected, bondBalance } = useBondify();
+  
   const [selectedHolding, setSelectedHolding] = useState<HoldingBond | null>(null);
   const [consolidatedHoldings, setConsolidatedHoldings] = useState<HoldingBond[]>([]);
 
   useEffect(() => {
     if (!isConnected) return;
 
-    // 1. Force read latest data from storage
+    // Force read latest data from storage
     const stored = localStorage.getItem('bond_holdings');
     const rawHoldings = stored ? JSON.parse(stored) : [];
 
-    // 2. Consolidate: Group by Bond ID
+    // Consolidate: Group by Bond ID
     const grouped: Record<string, HoldingBond> = {};
 
     rawHoldings.forEach((tx: any) => {
@@ -33,26 +35,24 @@ export const Redeem = () => {
       if (!grouped[tx.id]) {
         grouped[tx.id] = {
           id: tx.id,
-          name: tx.name,
-          shortName: tx.name.split(' (')[0], // Remove any extra text
+          name: tx.name.replace(' (SIP)', ''), // Clean up name
+          shortName: tx.name.split(' (')[0], 
           tokensOwned: 0,
-          minInvestment: 100, // Standard face value
-          apy: 7.26 // Default APY for display
+          minInvestment: 100, 
+          apy: 7.26 
         };
       }
       
-      // Add or subtract amount (Redemptions should be negative in history)
-      // We parse float to ensure we don't get string concatenation errors
       const amount = parseFloat(tx.amount);
       grouped[tx.id].tokensOwned += amount;
     });
 
-    // 3. Filter: Only show bonds where you still own tokens (> 0.01 to avoid float errors)
+    // Filter: Only show bonds where you still own tokens
     const activeHoldings = Object.values(grouped).filter(h => h.tokensOwned > 0.01);
     
     setConsolidatedHoldings(activeHoldings);
 
-  }, [isConnected, selectedHolding]); // Re-run when modal closes
+  }, [isConnected, selectedHolding, bondBalance]); // 2. ADDED: bondBalance here triggers the refresh
 
   return (
     <section id="redeem" className="min-h-screen py-24 px-6">

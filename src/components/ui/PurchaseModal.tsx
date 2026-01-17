@@ -70,14 +70,15 @@ export const PurchaseModal = ({ bond, isOpen, onClose }: PurchaseModalProps) => 
 
       // 2. Persist Data with SIP Logic
       const newHolding = {
-        id: bond.id,
-        name: bond.name || bond.shortName,
-        amount: tokensReceived,
-        timestamp: Date.now(),
-        isSIP: isSIP,
-        // Set next auto-invest for 2 minutes from now (Simulation)
-        sipNextDate: isSIP ? Date.now() + 120000 : null 
-      };
+  id: bond.id,
+  name: bond.name || bond.shortName,
+  amount: tokensReceived,
+  timestamp: Date.now(),
+  isSIP: isSIP,
+  // NEW: Save the actual amount user typed (e.g. 500), otherwise default 100
+  sipAmount: isSIP ? (numericAmount > 0 ? numericAmount : 100) : 0,
+  sipNextDate: isSIP ? Date.now() + 120000 : null 
+};
 
       const existing = localStorage.getItem('bond_holdings');
       const history = existing ? JSON.parse(existing) : [];

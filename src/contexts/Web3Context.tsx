@@ -26,10 +26,11 @@ interface Web3ContextType {
   isCorrectNetwork: boolean;
   connectWallet: () => Promise<void>;
   switchToFuji: () => Promise<void>;
-  handleMint: (amount: string, isSIP?: boolean) => Promise<void>;
+  handleMint: (amount: string) => Promise<void>;
   handleClaim: () => Promise<void>;
   compoundYield: (bondId: string, amount: number) => Promise<void>;
   redeemTokens: (amount: string, bondId: string, bondName: string) => Promise<boolean>;
+  cancelSIP: (bondId: string) => Promise<void>; // <--- NEW: Function to stop SIP
   refreshBalances: () => Promise<void>;
   setTransactionStatus: (status: string) => void;
   transactionStatus: string;
@@ -78,17 +79,22 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
       history.forEach((bond: any) => {
         // If bond has an active SIP and the timer (120,000ms) has passed
         if (bond.isSIP && bond.sipNextDate && now >= bond.sipNextDate) {
-          const sipAmountRupees = 100; 
+          
+          // UPDATED: Use the specific amount chosen by user, or default to 100
+          const sipAmountRupees = bond.sipAmount || 100; 
           const currentBalance = parseFloat(currencyBalance);
 
           if (currentBalance >= sipAmountRupees) {
+            const tokensToBuy = sipAmountRupees / 100; // Calculate tokens (e.g. 500rs = 5 tokens)
+
             // 1. Create the Auto-Purchase entry
             const autoPurchase = {
               id: bond.id,
               name: `${bond.name} (SIP)`,
-              amount: 1, // ₹100 = 1 Token
+              amount: tokensToBuy,
               timestamp: now,
               isSIP: true,
+              sipAmount: sipAmountRupees, // Pass the custom amount forward
               sipNextDate: now + 120000 // Queue next one for 2 mins later
             };
 
@@ -99,10 +105,10 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             // 3. Update Global State
             setCurrencyBalance(prev => (parseFloat(prev) - sipAmountRupees).toFixed(2));
-            setBondBalance(prev => (parseFloat(prev) + 1).toString());
+            setBondBalance(prev => (parseFloat(prev) + tokensToBuy).toString());
             
             updated = true;
-            console.log(`[SIP Worker] Auto-investment executed for ${bond.name}`);
+            console.log(`[SIP Worker] Auto-investment of ₹${sipAmountRupees} executed for ${bond.name}`);
           }
         }
       });
@@ -251,6 +257,38 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // --- NEW: Cancel SIP Function ---
+  const cancelSIP = async (bondId: string) => {
+    setTransactionStatus('CANCELLING SIP...');
+    try {
+        await new Promise(r => setTimeout(r, 1000));
+        
+        const stored = localStorage.getItem('bond_holdings');
+        if (stored) {
+            const history = JSON.parse(stored);
+            
+            // Iterate through history and disable SIP for all matching bond entries
+            const updatedHistory = history.map((h: any) => {
+                if (h.id === bondId) {
+                    return { ...h, isSIP: false, sipNextDate: null };
+                }
+                return h;
+            });
+            
+            localStorage.setItem('bond_holdings', JSON.stringify(updatedHistory));
+            
+            // Force a re-render by touching state (cleanest way in simulation)
+            setBondBalance(prev => prev); 
+        }
+        
+        setTransactionStatus('SIP STOPPED');
+    } catch (e) {
+        console.error(e);
+        setTransactionStatus('ERROR');
+    }
+    setTimeout(() => setTransactionStatus(''), 2000);
+  };
+
   const refreshBalances = async () => {};
 
   useEffect(() => {
@@ -266,7 +304,8 @@ export const Web3Provider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <Web3Context.Provider value={{
       account, isConnected, isVerified, bondBalance, currencyBalance,
       claimableYield, yieldRate, isCorrectNetwork,
-      connectWallet, switchToFuji, handleMint, handleClaim, compoundYield, redeemTokens,
+      connectWallet, switchToFuji, handleMint, handleClaim, 
+      compoundYield, redeemTokens, cancelSIP, // Exported here
       refreshBalances, transactionStatus, setTransactionStatus
     }}>
       {children}

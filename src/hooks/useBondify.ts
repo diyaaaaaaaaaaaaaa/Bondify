@@ -11,6 +11,7 @@ export const useBondify = () => {
     yieldRate,
     handleMint,
     handleClaim,
+    cancelSIP,
     compoundYield, // <--- Added: Pulling from Context
     redeemTokens,
     refreshBalances,
@@ -37,6 +38,7 @@ export const useBondify = () => {
     claimYield: handleClaim,
     compoundYield, // <--- Added: Exposing to components
     redeemTokens,
+    cancelSIP,
     refresh: refreshBalances
   };
 };
